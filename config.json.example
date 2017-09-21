@@ -1,0 +1,18 @@
+{
+	"SQLALCHEMY_DATABASE_URI": "sqlite:///data.db",
+	"LOGGING": {
+		"LEVEL": {
+			"ALL": 20,
+			"CONSOLE": 20,
+			"FILE": 20
+		},
+		"FILE": "log.txt"
+    },
+    "MAINTAINER": "",
+    "EVE_CLIENT_ID": "",
+    "EVE_CLIENT_SECRET": "",
+    "EVE_CALLBACK_URI": "",
+    "SUBREDDIT":"",
+	"ZKILL_USER_AGENT": "",
+	"MAX_SRP":
+}

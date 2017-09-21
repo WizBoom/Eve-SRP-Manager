@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>GETIN SRP</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.97.6/css/materialize.min.css">
+    <script type = "text/javascript" src="https://code.jquery.com/jquery-2.2.4.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.97.6/js/materialize.min.js"></script>
+    <style>
+      div.card-panel p {
+        font-size: 1.2em;
+      }
+    </style>
+    <script>
+      $(document).ready(function() {
+        setTimeout(function() {
+          $('.flashed.disappear').fadeOut('slow');
+        }, 10000);
+        $(".button-collapse").sideNav();
+      });
+    </script>
+  </head>
+
+  <body class="grey lighten-5">
+    <header>
+      <nav>
+        <div class="nav-wrapper grey darken-3">
+          <div class="container">
+            <a href="/" class="brand-logo">GETIN SRP <span style="color:#ff0000">Beta</span></a>
+            <ul id="nav-mobile" class="right hide-on-med-and-down">
+                {% if current_user.is_authenticated %}
+                  <li><a href="{{ url_for('my_info') }}">My Info</a></li>
+                  {% if "Mentor" in session['roles'] or "Director" in session['roles'] or "Admin" in session['roles'] %}
+                    <li><a href="{{ url_for('new_fight') }}">New Fight</a></li>
+                    {% if "Director" in session['roles'] or "Admin" in session['roles'] %}
+                      <li><a href="{{ url_for('index') }}">History</a></li>
+                      <li><a href="{{ url_for('index') }}">Admin</a></li>
+                    {% endif %}
+                  {% endif %}
+                  <li><a href="{{ url_for('logout') }}">Logout {{ current_user.character_name }}</a></li>
+                {% endif %}
+            </ul>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main>
+        <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+          {% for category, message in messages %}
+              {% if message %}
+                {% if category == 'success' %}
+                  <div class="card-panel green lighten-1 flashed disappear">
+              {% else %}
+                  <div class="card-panel red lighten-1 flashed">
+              {% endif %}
+                  <p>{{ message }}</p>
+            </div>
+            {% endif %}
+          {% endfor %}
+          {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock content %}
+      </div>
+    </main>
+  </body>
+</html>

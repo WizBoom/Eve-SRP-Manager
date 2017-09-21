@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+{% block content%}
+	<div class="col s12">
+		<div class="row">
+			<div class="center">
+				<h4>{{fight.title}}</h4>
+			</div>
+			<div class="card-panel">
+				<div class="center">
+					<div class="row">
+						<div class="col s12">
+							<p>{{fight.date}}</p>
+						</div>
+						<div class="col s4">
+							<p><b>FC:</b> {{fight.fc}}</p>
+						</div>
+						<div class="col s4">
+							<a href="{{fight.redditLink}}" target="_blank"><p>Reddit Thread</p></a>
+						</div>
+						<div class="col s4">
+							<p><b>Mentor:</b> {{fight.mentor}}</p>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<br>
+		<div class="row">
+			<div class="center">
+				<h4>Apply for SRP</h4>
+			</div>
+			<div class="card-panel">
+				<div class="row">
+				    <div class="col s12">
+				    	<ul class="tabs">
+					        <li class="tab col s3"><a class="active" href="#logi">Logi</a></li>
+					        <li class="tab col s3"><a href="#fc">FC</a></li>
+				    	</ul>
+				    </div>
+				    <div id="logi" class="col s12">
+				    	<br>
+				    	<div class="row">
+						    <form class="col s12" method="post" name="logi" onsubmit="return validateFormLogi()">
+								<div class="row">
+								    <div class="input-field col s6">
+									    <input name="zkill" type="text" class="validate">
+									    <label for="zkill">Zkillboard Lossmail Link</label>
+								    </div>
+									<div class="input-field col s6">
+									    <input name="reddit" type="text" class="validate">
+									    <label for="reddit">Reddit Comment Link</label>
+								    </div>
+									<div class="input-field col s3">
+										<input type="checkbox" class="filled-in" id="recL" name="recording"/>
+										<label for="recL">Provided recording</label>
+								    </div>
+								</div>
+								<div class="row">
+									<div class="input-field col s2">
+				    					<button class="btn btn-default grey darken-3" type="submit" name="type" value="logi">Post</button>
+									</div>
+								</div>
+						    </form>
+				    	</div>
+				    </div>
+				    <div id="fc" class="col s12">
+				    	<br>
+				    	<div class="row">
+						    <form class="col s12" method="post" name="fc" onsubmit="return validateFormFC()">
+								<div class="row">
+								    <div class="input-field col s6">
+									    <input name="zkill" type="text" class="validate">
+									    <label for="zkill">Zkillboard Lossmail Link</label>
+								    </div>
+									<div class="input-field col s6">
+									    <input name="reddit" type="text" class="validate">
+									    <label for="reddit">Reddit Comment Link</label>
+								    </div>
+									<div class="input-field col s3">
+										<input type="checkbox" class="filled-in" id="recFC" name="recording"/>
+										<label for="recFC">Provided recording</label>
+								    </div>
+									<div class="input-field col s3">
+										<input type="checkbox" class="filled-in" id="aarFC" name="after-action-report"/>
+										<label for="aarFC">Provided AAR</label>
+								    </div>
+								</div>
+								<div class="row">
+									<div class="input-field col s2">
+				    					<button class="btn btn-default grey darken-3" type="submit" name="type" value="fc">Post</button>
+									</div>
+								</div>
+						    </form>
+				    	</div>
+				    </div>
+			  	</div>
+			</div>
+	   	</div>
+		{% if "Mentor" in session['roles'] or "Director" in session['roles'] or "Admin" in session['roles'] %}
+		   	<br>
+		   	<div class="row">
+				<div class="center">
+					<h4>Applications</h4>
+				</div>
+				<ul class="collapsible" data-collapsible="accordion">
+					{% for request in fight.requests %}
+					<li>
+						<div class="collapsible-header"><span class="left">{{request.characterName}}</span>
+							<span class="right">
+							{% if request.paid %}
+								Paid
+							{% else %}
+								{% if request.approved is none %}
+									Open Request
+								{% elif request.approved == true %}
+									Accepted
+								{% else %}
+									Rejected
+								{% endif %}
+							{% endif %}
+							</span>
+						</div>
+						<div class="collapsible-body">
+							<table class="grey lighten-3">
+								<thead>
+									<tr>
+										<th>Type</th>
+										<th>Lossmail</th>
+										<th>Reddit Comment</th>
+										{% if "logi" in request.percentageOptions %}
+											<th>Recording?</th>
+										{% elif "FC"  in request.percentageOptions %}
+											<th>Recording?</th>
+											<th>AAR?</th>
+										{% endif %}
+										<th>Payout</th>
+										<th></th>
+										<th></th>
+									</tr>
+								</thead>
+								<tbody>
+									<tr>
+										{% if "logi" in request.percentageOptions %}
+											<td>Logi</td>
+										{% elif "FC"  in request.percentageOptions %}
+											<td>FC</td>
+										{% endif %}
+
+										<td>
+											<a href="https://zkillboard.com/kill/{{request.killId}}/"
+                          							class="btn waves-effect waves-light btn-small grey darken-1"
+                          							target="_blank">
+                          							Link
+                        							</a>
+										</td>
+
+										{% if request.redditLink == "" %}
+											<td>None</td>
+										{% else %}
+											<td>
+												<a href="{{request.redditLink}}"
+                          							class="btn waves-effect waves-light btn-small grey darken-1"
+                          							target="_blank">
+                          							Link
+                        							</a>
+											</td>
+										{% endif %}
+
+										{% if "logi" in request.percentageOptions %}
+											{% if "RECORDING" in request.percentageOptions %}
+												<td>Yes</td>
+											{% else %}
+												<td>No</td>
+											{% endif %}
+										{% elif "FC"  in request.percentageOptions %}
+											{% if "RECORDING" in request.percentageOptions %}
+												<td>Yes</td>
+											{% else %}
+												<td>No</td>
+											{% endif %}
+
+											{% if "AAR" in request.percentageOptions %}
+												<td>Yes</td>
+											{% else %}
+												<td>No</td>
+											{% endif %}.id
+										{% endif %}
+										<td>{{ '{0:,.2f}'.format(request.payout) }} ISK</td>
+										<td>
+											{% if request.approved != true %}
+												<form method="post">
+													<button class="btn waves-effect waves-light btn-small light-green" type="submit" name="accepted" value="{{request.id}}">Accept</button>
+	                        					</form>
+                        					{% endif %}
+										</td>
+										<td>
+											{% if request.approved != false %}
+												<form method="post">
+													<button class="btn waves-effect waves-light btn-small red accent-4" type="submit" name="rejected" value="{{request.id}}">Decline</button>
+	                        					</form>
+                        					{% endif %}
+										</td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
+					</li>
+					{% else %}
+						<div class="center">
+							<div class="row">
+								<div class="col s12">
+									<h5>No applications!</h5>
+								</div>
+							</div>
+						</div>
+					{% endfor %}
+				</ul>
+			</div>
+		{% endif %}
+	</div>
+
+<script>
+	function validateFormLogi() {
+		var zkill = document.forms["logi"]["zkill"].value;
+		var reddit = document.forms["logi"]["reddit"].value;
+		var recording = document.forms["logi"]["recording"].checked;
+		if (zkill == "") {
+			alert("Please provide a zkillboard link");
+			return false;
+			}
+		else if (reddit == "" && recording == true){
+			alert("Please provide the redditcomment with your recording");
+			return false;
+		}
+	}
+</script>
+<script>
+	function validateFormFC() {
+		var zkill = document.forms["fc"]["zkill"].value;
+		var reddit = document.forms["fc"]["reddit"].value;
+		var recording = document.forms["fc"]["recording"].checked;
+		var aar = document.forms["fc"]["after-action-report"].checked;
+		if (zkill == "") {
+			alert("Please provide a zkillboard link");
+			return false;
+			}
+		else if (reddit == "" && (recording == true || aar == true)){
+			alert("Please provide the redditcomment with your recording and / or AAR");
+			return false;
+		}
+	}
+</script>
+<script>
+  $(document).ready(function(){
+    $('.collapsible').collapsible();
+  });
+ </script>
+{% endblock %}

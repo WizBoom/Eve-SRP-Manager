@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block content%}
+	{% if current_user.is_authenticated %}
+			<div class="col s12">
+				<div class="row">
+					<div class="center">
+						<h4>My Open SRP Requests</h4>
+					</div>
+					<div class="card-panel">
+		  				<p>
+		  					Request #1<br>
+		  					Request #2<br>
+		  					Request #3
+		  				</p>
+					</div>
+				</div>
+				<br>
+				<div class="row">
+					<div class="center">
+						<h4>Open Fleet Fights</h4>
+					</div>
+					<div class="card-panel">
+		  				<p>
+		  					Fleet Fight #1<br>
+		  					Fleet Fight #2<br>
+		  					Fleet Fight #3
+		  				</p>
+					</div>
+				</div>
+				<br>
+				<div class="row">
+					<div class="center">
+						<h4>SRP Fund</h4>
+					</div>
+					<div class="card-panel">
+		  				<div class="center">
+		  					<h5>Total Fund</h5>
+		  				</div>
+		  				<p>
+		  					Log #1<br>
+		  					Log #2<br>
+		  					Log #3<br>
+		  				</p>
+					</div>
+				</div>
+				<div class="row">
+					<div class="center">
+						<h4>Statistics</h4>
+					</div>
+					<div class="card-panel">
+		  				<div class="center">
+		  					<h5>In progress</h5>
+		  				</div>
+					</div>
+				</div>
+			</div>
+	{% else %}
+		<div class="center">
+  			<h3 class="center">Use EVE's Single Sign-On to log in to the GETIN SRP App:</h3>
+  			<a href="{{ url }}"><img src="https://i.imgur.com/qNdhCs4.png" alt="Click here to log in"></a>
+		</div>
+	{% endif %}
+{% endblock %}
