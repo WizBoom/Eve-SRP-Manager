@@ -2,7 +2,8 @@ import logging
 import json
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
+import time
 from flask import Flask, flash, redirect, render_template, request, url_for,session
 from flask_login import LoginManager, login_user, logout_user, current_user, login_required
 from flask_sqlalchemy import SQLAlchemy
@@ -10,7 +11,7 @@ from preston.esi import Preston
 import praw
 import re
 import requests
-
+import asyncio
 
 # config setup
 with open('config.json') as f:
@@ -66,7 +67,10 @@ def load_user(user_id):
 
 @app.route('/')
 def index():
-	return render_template('index.html',url=preston.get_authorize_url())
+	date = datetime.utcnow() - timedelta(days=config['OPEN_DAYS'])
+	fights = FleetFight.query.filter(FleetFight.timestamp >= date).all()
+	requests = SRPRequest.query.filter(SRPRequest.approved is None or (SRPRequest.paid == False and SRPRequest.approved == True)).order_by(SRPRequest.timestamp.asc()).all()
+	return render_template('index.html',url=preston.get_authorize_url(), fights=fights, requests=requests)
 
 @app.route('/eve/callback')
 def eve_oauth_callback():
@@ -120,8 +124,9 @@ def new_fight():
 			submission = None
 			try:
 				redditTitle = request.form['title'] + " - " + request.form['date']
-				redditContent = "CONTENT TEST"
-				submission = subreddit.submit(redditTitle,redditContent)
+
+				submission = subreddit.submit(redditTitle,selftext="")
+				submission.mod.flair(config['FLAIR_TEXT'],config['FLAIR_CSS'])
 			except praw.exceptions.APIException as e:
 					app.logger.error(str(e))
 					flash("We've hit the Reddit post ratelimit! Try again in 10 minutes.",'error')
@@ -138,7 +143,17 @@ def new_fight():
 			fight = FleetFight(date,request.form['title'],request.form['FC'],current_user.character_name, url)
 			db.session.add(fight)
 			db.session.commit()
-			app.logger.info("Created " + str(fight))
+			app.logger.info(current_user.character_name +" created fight in the database:" + str(fight))
+			redditContent = """
+**Date:** {}\n
+**FC:** {}\n
+**Mentor:** {}\n
+[SRP Link]({})\n
+
+*If you lost a ship during this fight, apply on the SRP link. If you'd like a bigger percentage, provide a link to your reddit comment made in this thread*
+				""".format(fight.date.strftime('%Y/%m/%d %H:%M'),fight.fc,fight.mentor,config['BASE_URL'] +"/view_fight/" + str(fight.id))
+			submission.edit(redditContent)
+
 			return redirect(url_for('view_fight', id=fight.id))
 
 		data = Character.query.order_by(Character.character_name.asc()).all()
@@ -150,6 +165,10 @@ def new_fight():
 @login_required
 def view_fight(id):
 	fight = FleetFight.query.filter_by(id=id).first()
+	if fight is None:
+		flash("Fight with id {} does not exist!".format(str(id)),'error')
+		return redirect(url_for('index'))
+
 	if request.method == 'POST':
 		if 'type' in request.form:
 			if request.form['type'] == 'fc':
@@ -251,8 +270,8 @@ def view_fight(id):
 					return redirect(url_for('view_fight', id=id)) 
 
 				#Check if user is user on lossmail
-				if current_user.character_name != data[0]['victim']['characterName']:
-					flash("Zkillboard loss provided isn't the logged in character {}, but is from character {}!".format(current_user.character_name,data[0]['victim']['characterName']),'error')
+				if current_user.character_id != data[0]['victim']['character_id']:
+					flash("Zkillboard loss provided isn't the logged in character {}, but is from character {}!".format(current_user.character_id,data[0]['victim']['character_id']),'error')
 					return redirect(url_for('view_fight', id=id)) 
 
 				#Calculate payout
@@ -270,13 +289,67 @@ def view_fight(id):
 			# Look for specific request
 			srpRequest = SRPRequest.query.filter_by(id=int(request.form['accepted'])).first()
 			srpRequest.approved = True
+			srpRequest.rejectionReason = ""
 			db.session.commit()
 		elif 'rejected' in request.form:
 			# Look for specific request
-			srpRequest = SRPRequest.query.filter_by(id=int(request.form['accepted'])).first()
+			srpRequest = SRPRequest.query.filter_by(id=int(request.form['rejected'])).first()
+			if srpRequest is None:
+				flash("There is no SRP Request with that ID",'error')
+				return render_template('view_fight.html',fight=fight)
 			srpRequest.approved = False
+			srpRequest.rejectionReason = request.form['rejReason']
 			db.session.commit()
 	return render_template('view_fight.html',fight=fight)
+
+
+@app.route('/remove_fight/<int:id>')
+@login_required
+def remove_fight(id):
+	fight = FleetFight.query.filter(FleetFight.id == id).first()
+	if fight is None:
+		flash("Fight with id {} does not exist!".format(str(id)),'error')
+		return redirect(url_for('index'))
+
+	if ("Mentor" in session['roles'] and current_user.character_name == fight.mentor) or "Director" in session['roles'] or "Admin" in session['roles']:
+		app.logger.info("{} is deleting fight {}".format(current_user.character_name, fight.title))
+
+		#Remove reddit post
+		app.logger.info("Removing reddit post with link {}.".format(fight.redditLink))
+		reddit.submission(url=fight.redditLink).delete()
+
+		#Removing database entry
+		app.logger.info("{} removed fight ({}) out of the database with timestamp {}".format(current_user.character_name,fight.title, fight.timestamp))
+		db.session.delete(fight)
+		db.session.commit()
+
+		flash("Removed {} and it's reddit thread".format(fight.title),'success')
+	else:
+		app.logger.error("{} tried to remove a fight {}".format(current_user.character_name,fight.title))
+		flash("Cannot delete the fight",'error')
+
+	return redirect(url_for('index'))
+
+@app.route('/remove_request/<int:id>')
+@login_required
+def remove_request(id):
+	request = SRPRequest.query.filter(SRPRequest.id == id).first()
+	fight = FleetFight.query.filter(FleetFight.id == request.fightId).first()
+	if request is None or fight is None:
+		flash("Request with id {} does not exist!".format(str(id)),'error')
+		return redirect(url_for('index'))
+
+	#Only be able to remove the request if you're the creator of the fight, the creator of the request, admin or director
+	if current_user.character_name == request.characterName or current_user.character_name == fight.mentor or "Director" in session['roles'] or "Admin" in session['roles']:
+		db.session.delete(request)
+		db.session.commit()
+		flash("Succesfully removed request",'success')
+		app.logger.info("{} removed SRP request: {}".format(current_user.character_name, request))
+	else:
+		flash("Can't do that booboo",'error')
+
+	return redirect(url_for('index'))
+
 
 @app.route('/dancefloor/')
 def dancefloor():
@@ -288,16 +361,12 @@ def dancefloor():
 	role1 = Role('Mentor')
 	role2 = Role('Admin')
 	role3 = Role('Director')
-	fight1 = FleetFight(datetime.utcnow(),"Fight 1","Alex Kommorov","Alex Kommorov")
-	fight2 = FleetFight(datetime.utcnow(),"Fight 2","Bishop 5","Alex Kommorov")
 	db.session.add(char1)
 	db.session.add(char2)
 	db.session.add(char3)
 	db.session.add(role1)
 	db.session.add(role2)
 	db.session.add(role3)
-	db.session.add(fight1)
-	db.session.add(fight2)
 	db.session.commit()
 	char1.roles.append(role1)
 	char1.roles.append(role2)
@@ -306,14 +375,27 @@ def dancefloor():
 	db.session.commit()
 	return redirect(url_for('index'))
 
-@app.route('/sand/')
-def sand():
-	char = Character.query.filter(Character.id == 1).first()
-	db.session.delete(char)
-	fight = FleetFight.query.filter(FleetFight.id == 1).first()
-	db.session.delete(fight)
-	db.session.commit()
-	return redirect(url_for('index'))
+@asyncio.coroutine
+def corp_update_task():
+	while True:
+		corp_update()
+		yield from asyncio.sleep(config['CORP_UPDATE_TIME'])
+
+def corp_update():
+	#Get all corp members
+	allianceRequest = requests.get("https://esi.tech.ccp.is/latest/corporations/98134538/members/?datasource=tranquility&token=IA1WFvXN2KxYmawsSdshnYGnDK80IoIbDVMYulC607rvJusPfZxCSzEbw1sFpDSMiGYJ5V7DZXn3vcVM3nLx8Q2", headers={
+		'User-Agent': 'Maintainer: '+ config['MAINTAINER']
+		})
+	print(allianceRequest.json())
+
+
+task = asyncio.Task(corp_update_task())
+loop = asyncio.get_event_loop()
+
+try:
+    loop.run_until_complete(task)
+except Exception as e:
+    app.logger.error("Error in loop: {}".format(str(e)))
 
 #Run app
 if __name__ == '__main__':

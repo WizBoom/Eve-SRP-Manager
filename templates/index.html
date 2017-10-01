@@ -7,11 +7,30 @@
 						<h4>My Open SRP Requests</h4>
 					</div>
 					<div class="card-panel">
-		  				<p>
-		  					Request #1<br>
-		  					Request #2<br>
-		  					Request #3
-		  				</p>
+						{% if requests %}
+							<table>
+								<thead>
+									<tr>
+										<th>Timestamp</th>
+										<th>Amount</th>
+										<th></th>
+									</tr>
+								</thead>
+								<tbody>
+									{% for request in requests %}
+									<tr>
+										<td>{{ request.timestamp.strftime('%Y/%m/%d %H:%M') }}</td>
+										<td>{{ '{0:,.2f}'.format(request.payout) }} ISK</td>
+										<td>
+											<a class="waves-effect waves-light btn red accent-4" href="{{url_for('remove_request', id=request.id)}}" onclick="showModal(this, 'md1'); return false;">Delete request</a>
+										</td>
+									</tr>
+									{% endfor %}
+								</tbody>
+							</table>
+						{% else %}
+							<p>No Open / Unpaid SRP Requests</p>
+						{% endif %}
 					</div>
 				</div>
 				<br>
@@ -20,11 +39,38 @@
 						<h4>Open Fleet Fights</h4>
 					</div>
 					<div class="card-panel">
-		  				<p>
-		  					Fleet Fight #1<br>
-		  					Fleet Fight #2<br>
-		  					Fleet Fight #3
-		  				</p>
+						{% if fights %}
+							<table>
+								<thead>
+									<tr>
+										<th>Title</th>
+										<th>Date</th>
+										<th>FC</th>
+										<th>Mentor</th>
+										<th></th>
+									</tr>
+								</thead>
+								<tbody>
+									{% for fight in fights %}
+									<tr>
+										<td>{{ fight.title }}</td>
+										<td>{{ fight.date.strftime('%Y/%m/%d %H:%M') }}</td>
+										<td>{{ fight.fc }}</td>
+										<td>{{ fight.mentor }}</td>
+										<td>
+											<a href="/view_fight/{{ fight.id }}"
+                          							class="btn waves-effect waves-light btn-small grey darken-1"
+                          							target="_blank">
+                          							View Fight
+                        							</a>
+										</td>
+									</tr>
+									{% endfor %}
+								</tbody>
+							</table>
+						{% else %}
+							<p>No Open Fights</p>
+						{% endif %}
 					</div>
 				</div>
 				<br>
@@ -60,4 +106,21 @@
   			<a href="{{ url }}"><img src="https://i.imgur.com/qNdhCs4.png" alt="Click here to log in"></a>
 		</div>
 	{% endif %}
+	 <div id="md1" class="modal">
+		<div class="modal-content">
+			<h4>Deleting SRP request</h4>
+			<p>Are you sure you wish to proceed?</p>
+		</div>
+		<div class="modal-footer">
+			<a href="#" class="waves-effect waves-red btn-flat" onclick="$('#md1').closeModal(); return false;">Cancel</a>
+			<a href="#" class="waves-effect waves-green btn-flat" id="md1_YesBtn">Yes</a>
+		</div>
+	</div>
+
+	<script>  
+		function showModal(but, modal){  
+			$('#' + modal).openModal(); 
+			$('#' + modal + '_YesBtn').click(function(){ $('#' + modal).closeModal(); document.location = but.href; }); 
+		} 
+	</script>
 {% endblock %}

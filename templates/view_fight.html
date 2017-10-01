@@ -9,7 +9,7 @@
 				<div class="center">
 					<div class="row">
 						<div class="col s12">
-							<p>{{fight.date}}</p>
+							<p>{{fight.date.strftime('%Y/%m/%d %H:%M')}}</p>
 						</div>
 						<div class="col s4">
 							<p><b>FC:</b> {{fight.fc}}</p>
@@ -136,6 +136,10 @@
 										<th>Payout</th>
 										<th></th>
 										<th></th>
+										{% if current_user.character_name == request.characterName or current_user.character_name == fight.mentor or 
+										"Director" in session['roles'] or "Admin" in session['roles'] %}
+											<th></th>
+										{% endif %}
 									</tr>
 								</thead>
 								<tbody>
@@ -195,11 +199,19 @@
 										</td>
 										<td>
 											{% if request.approved != false %}
-												<form method="post">
-													<button class="btn waves-effect waves-light btn-small red accent-4" type="submit" name="rejected" value="{{request.id}}">Decline</button>
-	                        					</form>
+												<a class="waves-effect waves-light btn red accent-4" onclick="showModalWithVariable(this, 'modalRejection','rejID',{{request.id}}); return false;">Reject</a>
+											{% else %}
+												<a class="waves-effect waves-light btn grey darken-1" 
+												onclick="showModalWithVariable(this, 'modalRejectionReason','rejReasonId','{{request.rejectionReason}}'); return false;">Reason</a>
                         					{% endif %}
 										</td>
+										{% if current_user.character_name == request.characterName or current_user.character_name == fight.mentor or 
+										"Director" in session['roles'] or "Admin" in session['roles'] %}
+											<td>
+												<a class="waves-effect waves-light btn red accent-4" href="{{url_for('remove_request',id=request.id)}}" 
+												onclick="showModal(this, 'md2'); return false;">Delete</a>
+											</td>
+										{% endif %}
 									</tr>
 								</tbody>
 							</table>
@@ -217,7 +229,77 @@
 				</ul>
 			</div>
 		{% endif %}
+		{% if ("Mentor" in session['roles'] and current_user.character_name == fight.mentor) or "Director" in session['roles'] or "Admin" in session['roles'] %}
+			<div class="row">
+				<a class="waves-effect waves-light btn red accent-4" href="{{url_for('remove_fight', id=fight.id)}}" onclick="showModal(this, 'md1'); return false;">Delete fight</a>
+			</div>
+		{% endif %}
 	</div>
+
+<script>
+  $(document).ready(function(){
+    $('.collapsible').collapsible();
+  });
+</script>
+
+<div id="md1" class="modal">
+	<div class="modal-content">
+		<h4>Deleting fight</h4>
+		<p>Are you sure you wish to proceed?</p>
+	</div>
+	<div class="modal-footer">
+		<a href="#" class="waves-effect waves-red btn-flat" onclick="$('#md1').closeModal(); return false;">Cancel</a>
+		<a href="#" class="waves-effect waves-green btn-flat" id="md1_YesBtn">Yes</a>
+	</div>
+</div>
+
+ <div id="md2" class="modal">
+	<div class="modal-content">
+		<h4>Deleting SRP request</h4>
+		<p>Are you sure you wish to proceed?</p>
+	</div>
+	<div class="modal-footer">
+		<a href="#" class="waves-effect waves-red btn-flat" onclick="$('#md2').closeModal(); return false;">Cancel</a>
+		<a href="#" class="waves-effect waves-green btn-flat" id="md2_YesBtn">Yes</a>
+	</div>
+</div>
+
+<div id="modalRejection" class="modal">
+	<form method="post" name="rejection" onsubmit="return validateFormRejection()">
+		<div class="modal-content">
+			<div class="row">
+				<h4>Rejection</h4>
+				<div class="row">
+					<div class="input-field col s12">
+						<label for="rejReason">Reason</label>
+						<input type="text" name="rejReason">
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="modal-footer">
+			<a class="modal-action modal-close waves-effect waves-light btn-flat white">Close</a>
+			<button class="btn waves-effect waves-light btn red accent-4" type="submit" name="rejected" id="rejID" value="" onsubmit="return validateFormRejection()">Reject</button>
+		</div>
+	</form>
+</div>
+
+<div id="modalRejectionReason" class="modal">
+	<div class="modal-content">
+	    <div class="row">
+			<h4>Rejection Reason</h4>
+			<div class="row">
+          		<div class="input-field col s12">
+            		<input type="text" id="rejReasonId" value="" readonly>
+          		</div>
+        	</div>
+		</div>
+	</div>
+	<div class="modal-footer">
+		<a class="modal-action modal-close waves-effect waves-light btn-flat white">Close</a>
+	</div>
+</div>
+
 
 <script>
 	function validateFormLogi() {
@@ -251,8 +333,25 @@
 	}
 </script>
 <script>
-  $(document).ready(function(){
-    $('.collapsible').collapsible();
-  });
- </script>
+	function validateFormRejection() {
+		var rejectionReason = document.forms["rejection"]["rejReason"].value;
+		if (rejectionReason == ""){
+			alert("Please provide a reason");
+			return false;
+		}
+	}
+</script>
+<script>  
+	function showModal(but, modal){  
+		$('#' + modal).openModal(); 
+		$('#' + modal + '_YesBtn').click(function(){ $('#' + modal).closeModal(); document.location = but.href; }); 
+	} 
+</script>
+<script>
+	function showModalWithVariable(but, modal, variableId, variableValue){  
+		$('#' + modal).openModal(); 
+		$('#' + modal + '_YesBtn').click(function(){ $('#' + modal).closeModal(); document.location = but.href; });
+		document.getElementById(variableId).value = variableValue; 
+	} 
+</script>
 {% endblock %}
