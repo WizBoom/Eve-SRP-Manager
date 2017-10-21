@@ -217,7 +217,7 @@ def admin():
 @app.route('/admin/revoke/<character_table_id>/<role_id>')
 @login_required
 def revoke_access(character_table_id, role_id):
-	if "Admin" not in session['roles'] or "Director" not in session['roles']:
+	if "Admin" not in session['roles'] and "Director" not in session['roles']:
 		app.logger.info('Admin / Director access denied to {}'.format(current_user.character_name))
 		return redirect(url_for('index'))
 
@@ -239,7 +239,7 @@ def revoke_access(character_table_id, role_id):
 @app.route('/sync/')
 @login_required
 def sync():
-	if "Admin" not in session['roles'] or "Director" not in session['roles']:
+	if "Admin" not in session['roles'] and "Director" not in session['roles']:
 		app.logger.info('Admin / Director access denied to {}'.format(current_user.character_name))
 		return redirect(url_for('index'))
 
@@ -255,7 +255,7 @@ def sync():
 @app.route('/authorize/')
 @login_required
 def authorize_corp():
-	if "Admin" not in session['roles'] or "Director" not in session['roles']:
+	if "Admin" not in session['roles'] and "Director" not in session['roles']:
 		return redirect(url_for('index'))
 	return redirect(prestonCorp.get_authorize_url())
 
