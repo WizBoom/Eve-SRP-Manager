@@ -211,7 +211,7 @@
                         					{% endif %}
 										</td>
 										<td>
-											{% if request.approved == true and request.paid == false%}
+											{% if request.approved != false %}
 												<a class="waves-effect waves-light btn red accent-4" onclick="showModalWithVariable(this, 'modalRejection','rejID',{{request.id}}); return false;">Reject</a>
 											{% elif request.approved == false %}
 												<a class="waves-effect waves-light btn grey darken-1" 

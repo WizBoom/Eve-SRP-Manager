@@ -33,7 +33,7 @@
 									{% elif request.approved == true and request.paid == true %}
 										Paid
 									{% else %}
-										<a onclick="showModalWithVariable(this, 'modalRejectionReason','rejReasonId','{{request.rejectionReason}}'); return false;">Rejected</a>								
+										<a style="cursor: pointer;" onclick="showModalWithVariable(this, 'modalRejectionReason','rejReasonId','{{request.rejectionReason}}'); return false;">Rejected</a>								
 									{% endif %}
 								</td>
 								<td>

@@ -555,6 +555,7 @@ def sync_corp_members():
 				#Add character to database
 				character = Character(memberRequest.json()['name'],member,True)
 				db.session.add(character)
+				db.session.commit()
 				app.logger.info("Character {} joined corp, and was added to the database".format(memberRequest.json()['name']))
 
 		#Loop over all members in database
@@ -669,6 +670,7 @@ def sync_transactions():
 
 			dbTrans = Transaction(dateObject, jsonRow['ref_id'],jsonRow['ref_type'],fp_id,fp_type,fp_name,sp_id,sp_type,sp_name,jsonRow['amount'],jsonRow['balance'], reason)
 			db.session.add(dbTrans)
+			db.session.commit()
 
 		db.session.commit()
 		return True
