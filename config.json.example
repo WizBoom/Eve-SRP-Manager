@@ -11,7 +11,7 @@
     "MAINTAINER": "",
     "EVE_CLIENT_ID": "",
     "EVE_CLIENT_SECRET": "",
-    "EVE_CALLBACK_URI": "",
+    "EVE_CALLBACK_URI": "/eve/callback",
     "SUBREDDIT":"",
 	"ZKILL_USER_AGENT": "",
 	"MAX_SRP":,
@@ -23,7 +23,7 @@
 	"CORP_ID":,
 	"CORP_CLIENT_ID":"",
 	"CORP_CLIENT_SECRET":"",
-	"CORP_CALLBACK_URI":"",
+	"CORP_CALLBACK_URI":"/eve/corp/callback",
 	"CORP_WALLET_DIVISION":,
 	"HOMEPAGE_LOG_AMOUNT":
 }

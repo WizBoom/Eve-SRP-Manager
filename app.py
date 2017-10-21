@@ -178,7 +178,7 @@ def my_info():
 @app.route('/admin/', methods=['GET', 'POST'])
 @login_required
 def admin():
-	if "Admin" not in session['roles'] or "Director" not in session['roles']:
+	if "Admin" not in session['roles'] and "Director" not in session['roles']:
 		app.logger.info('Admin / Director access denied to {}'.format(current_user.character_name))
 		return redirect(url_for('index'))
 
