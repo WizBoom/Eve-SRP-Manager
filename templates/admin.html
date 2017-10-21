@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block content%}
+<script>
+  $(document).ready(function() {
+    $('#import').on('click', function() {
+      $(this).addClass('disabled');
+      $(this).text('Importing ...');
+      window.location.href = "{{ url_for('.sync') }}";
+    });
+    $('select').material_select();
+  });
+</script>
+<h2>Admin</h2>
+<div class="card-panel">
+  <h4>Sync</h4>
+  <p>
+  	This will import all the corp members from ESI, and add them to the database.
+  	It will also import all the corp's transactions.
+	This normally is an automatic process, but if someone really needs to get synced, press this button. 
+	This will take a while.<br><br>
+  </p>
+  <a class="btn waves-effect waves-light grey darken-1" href="{{ url_for('sync') }}">Sync
+    <i class="material-icons right">send</i>
+  </a>
+</div>
+<div class="card-panel">
+  <h4>Member roles</h4>
+  <br>
+  {% for role in roles %}
+	  <h5>{{ role.role_name }}</h5>
+	  <table>
+	    <tbody>
+	    	{% for character in role.characters %}
+		    	<tr>
+					<td width="30%">{{ character.character_name }}</td>
+					{% if current_user.character_name != character.character_name and role.role_name != "Admin" %}
+		            	<td width="70%"><a href="{{base_url}}/admin/revoke/{{character.id}}/{{role.id}}" class="btn waves-efect waves-light red">Revoke</a></td>
+		            {% else %}
+		            	<td></td>
+		            {% endif %}
+				</tr>
+			{% endfor %}
+	    </tbody>
+	  </table>
+	  <br>
+  {% endfor %}
+</div>
+
+<div class="card-panel">
+  <h4>Add roles</h4>
+  <form action="{{ url_for('admin') }}" method="POST" class="col s12">
+    <div class="row">
+      <div class="input-field col s4">
+        <select name="character_table_id" id="character_table_id">
+          {% for character in characters %}
+          	{% if character.in_corp %}
+            	<option value="{{ character.id }}">{{ character.character_name }}</option>
+            {% endif %}
+          {% endfor %}
+        </select>
+        <label for="character_table_id">Character Name</label>
+      </div>
+      <div class="input-field col s4">
+        <select name="role_table_id" id="role_table_id">
+          {% for role in roles %}
+          	{% if role.role_name != "Admin" %}
+				<option value="{{ role.id }}">{{ role.role_name }}</option>
+          	{% endif %}
+          {% endfor %}
+        </select>
+        <label for="role_table_id">Role Name</label>
+      </div>
+    </div>
+    <div class="col s6">
+      <button class="btn waves-effect waves-light grey darken-1" type="submit" name="action">Add
+        <i class="material-icons right">send</i>
+      </button>
+    </div>
+  </form>
+</div>
+<div class="card-panel">
+  <h4>Authorize</h4>
+  <p>
+  	Only use when corp ESI authorization has not been provided yet!
+	<br><br>
+  </p>
+  <a class="btn waves-effect waves-light grey darken-1" href="{{ url_for('authorize_corp') }}">Authorize
+    <i class="material-icons right">send</i>
+  </a>
+</div>
+{% endblock %}

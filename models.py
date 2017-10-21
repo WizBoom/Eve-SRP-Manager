@@ -14,17 +14,20 @@ class Character(db.Model):
 	id = db.Column(db.Integer,primary_key=True)
 	character_name = db.Column(db.String)
 	character_id = db.Column(db.Integer)
+	in_corp = db.Column(db.Boolean)
+	srp_requests = db.relationship('SRPRequest', backref='Characters',lazy='dynamic', cascade="all,delete-orphan")
 
-	def __init__(self, character_name, character_id):
+	def __init__(self, character_name, character_id, in_corp):
 		self.character_name = character_name
 		self.character_id = character_id
+		self.in_corp = in_corp
 
 	def __repr__(self):
 		return 'Character {} with id {}'.format(self.character_name, self.character_id)
 
 	@property
 	def is_authenticated(self):
-		return True
+		return self.in_corp
 
 	@property
 	def is_active(self):
@@ -76,7 +79,6 @@ class SRPRequest(db.Model):
 	__tablename__ = 'SRPRequests'
 	id = db.Column(db.Integer,primary_key=True)
 	timestamp = db.Column(db.DateTime)
-	characterName = db.Column(db.String)
 	killId = db.Column(db.String)
 	price = db.Column(db.Float(precision=2))
 	payout = db.Column(db.Float(precision=2))
@@ -85,11 +87,11 @@ class SRPRequest(db.Model):
 	approved = db.Column(db.Boolean)
 	rejectionReason = db.Column(db.String)
 	paid = db.Column(db.Boolean)
+	characterId = db.Column(db.Integer, db.ForeignKey('Characters.character_id'))
 	fightId = db.Column(db.Integer, db.ForeignKey('FleetFights.id'))
 
-	def __init__(self,characterName,killId,price,payout,percentageOptions,redditLink,approved=None,rejectionReason="",paid=False):
+	def __init__(self,killId,price,payout,percentageOptions,redditLink,approved=None,rejectionReason="",paid=False):
 		self.timestamp = datetime.utcnow()
-		self.characterName = characterName
 		self.killId = killId
 		self.price = price
 		self.payout = payout
@@ -100,4 +102,44 @@ class SRPRequest(db.Model):
 		self.paid = paid
 
 	def __repr__(self):
-		return "SRP application by {} with killId {} ({} ISK)".format(self.characterName,self.killId,str(self.price))
+		return "SRP application {} with killId {} ({} ISK)".format(self.id,self.killId,str(self.price))
+
+class ESICode(db.Model):
+	__tablename__ = 'ESICode'
+	id = db.Column(db.Integer,primary_key=True)
+	access_token = db.Column(db.String)
+	refresh_token = db.Column(db.String)
+
+	def __init__(self,access_token,refresh_token):
+		self.access_token = access_token
+		self.refresh_token = refresh_token
+
+class Transaction(db.Model):
+	__tablename__ = 'Transactions' 
+	id = db.Column(db.Integer,primary_key=True)
+	date = db.Column(db.DateTime)
+	ref_id = db.Column(db.Integer)
+	ref_type = db.Column(db.String)
+	first_party_id = db.Column(db.Integer)
+	first_party_type = db.Column(db.String)
+	first_party_name = db.Column(db.String)
+	second_party_id = db.Column(db.Integer)
+	second_party_type = db.Column(db.String)
+	second_party_name = db.Column(db.String)
+	amount = db.Column(db.Float(precision=2))
+	balance = db.Column(db.Float(precision=2))
+	reason = db.Column(db.String)
+
+	def __init__(self, date, ref_id, ref_type, first_party_id, first_party_type, first_party_name, second_party_id, second_party_type, second_party_name, amount, balance, reason):
+		self.date = date
+		self.ref_id = ref_id
+		self.ref_type = ref_type
+		self.first_party_id = first_party_id
+		self.first_party_type = first_party_type
+		self.first_party_name = first_party_name
+		self.second_party_id = second_party_id
+		self.second_party_type = second_party_type
+		self.second_party_name = second_party_name
+		self.amount = amount
+		self.balance = balance
+		self.reason = reason

@@ -35,7 +35,7 @@
                     <li><a href="{{ url_for('new_fight') }}">New Fight</a></li>
                     {% if "Director" in session['roles'] or "Admin" in session['roles'] %}
                       <li><a href="{{ url_for('index') }}">History</a></li>
-                      <li><a href="{{ url_for('index') }}">Admin</a></li>
+                      <li><a href="{{ url_for('admin') }}">Admin</a></li>
                     {% endif %}
                   {% endif %}
                   <li><a href="{{ url_for('logout') }}">Logout {{ current_user.character_name }}</a></li>

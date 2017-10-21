@@ -6,11 +6,48 @@
 				<h4>My SRP Requests</h4>
 			</div>
 			<div class="card-panel">
-  				<p>
-  					Request #1<br>
-  					Request #2<br>
-  					Request #3
-  				</p>
+				{% if requests %}
+					<table>
+						<thead>
+							<tr>
+								<th>Timestamp</th>
+								<th>Fight</th>
+								<th>Zkillboard</th>
+								<th>Amount</th>
+								<th>Status</th>
+								<th></th>
+							</tr>
+						</thead>
+						<tbody>
+							{% for request in requests %}
+							<tr>
+								<td>{{ request.timestamp.strftime('%Y/%m/%d %H:%M') }}</td>
+								<td><a href="{{base_url}}/view_fight/{{request.fightId}}">Link</a></td>
+								<td><a href="https://zkillboard.com/kill/{{request.killId}}/" target="_blank">Link</a></td>
+								<td>{{ '{0:,.2f}'.format(request.payout) }} ISK</td>
+								<td>
+									{% if request.approved is none %}
+										Open
+									{% elif request.approved == true and request.paid == false%}
+										Accepted
+									{% elif request.approved == true and request.paid == true %}
+										Paid
+									{% else %}
+										<a onclick="showModalWithVariable(this, 'modalRejectionReason','rejReasonId','{{request.rejectionReason}}'); return false;">Rejected</a>								
+									{% endif %}
+								</td>
+								<td>
+								{% if request.approved is none or (request.approved == true and request.paid == false) %}
+									<a class="waves-effect waves-light btn red accent-4" href="{{url_for('remove_request', id=request.id)}}" onclick="showModal(this, 'md1'); return false;">Delete request</a>
+								{% endif %}
+								</td>
+							</tr>
+							{% endfor %}
+						</tbody>
+					</table>
+				{% else %}
+					<p>No SRP Requests</p>
+				{% endif %}
 			</div>
 		</div>
 		<br>
@@ -25,4 +62,45 @@
 			</div>
 		</div>
 	</div>
+
+	<div id="modalRejectionReason" class="modal">
+		<div class="modal-content">
+		    <div class="row">
+				<h4>Rejection Reason</h4>
+				<div class="row">
+	          		<div class="input-field col s12">
+	            		<input type="text" id="rejReasonId" value="" readonly>
+	          		</div>
+	        	</div>
+			</div>
+		</div>
+		<div class="modal-footer">
+			<a class="modal-action modal-close waves-effect waves-light btn-flat white">Close</a>
+		</div>
+	</div>
+
+	 <div id="md1" class="modal">
+		<div class="modal-content">
+			<h4>Deleting SRP request</h4>
+			<p>Are you sure you wish to proceed?</p>
+		</div>
+		<div class="modal-footer">
+			<a href="#" class="waves-effect waves-red btn-flat" onclick="$('#md1').closeModal(); return false;">Cancel</a>
+			<a href="#" class="waves-effect waves-green btn-flat" id="md1_YesBtn">Yes</a>
+		</div>
+	</div>
+
+	<script>
+		function showModalWithVariable(but, modal, variableId, variableValue){  
+			$('#' + modal).openModal(); 
+			$('#' + modal + '_YesBtn').click(function(){ $('#' + modal).closeModal(); document.location = but.href; });
+			document.getElementById(variableId).value = variableValue; 
+		} 
+	</script>
+	<script>  
+		function showModal(but, modal){  
+			$('#' + modal).openModal(); 
+			$('#' + modal + '_YesBtn').click(function(){ $('#' + modal).closeModal(); document.location = but.href; }); 
+		} 
+	</script>
 {% endblock %}

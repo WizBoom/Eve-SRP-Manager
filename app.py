@@ -11,6 +11,7 @@ from preston.esi import Preston
 import praw
 import re
 import requests
+import base64
 import asyncio
 
 # config setup
@@ -47,12 +48,20 @@ db = SQLAlchemy(app)
 from models import *
 
 user_agent = 'GETIN SRP App ({})'.format(config['MAINTAINER'])
-# EVE CREST API connection
+# EVE  API connection
 preston = Preston(
 	user_agent=user_agent,
 	client_id=config['EVE_CLIENT_ID'],
 	client_secret=config['EVE_CLIENT_SECRET'],
-	callback_url=config['EVE_CALLBACK_URI']
+	callback_url=config["BASE_URL"] + config['EVE_CALLBACK_URI']
+)
+
+prestonCorp = Preston(
+	user_agent=user_agent,
+	client_id=config["CORP_CLIENT_ID"],
+	client_secret=config["CORP_CLIENT_SECRET"],
+	callback_url=config["BASE_URL"] + config["CORP_CALLBACK_URI"],
+	scope="esi-corporations.read_corporation_membership.v1 esi-wallet.read_corporation_wallets.v1"
 )
 
 # Get reddit instance
@@ -68,32 +77,88 @@ def load_user(user_id):
 @app.route('/')
 def index():
 	date = datetime.utcnow() - timedelta(days=config['OPEN_DAYS'])
-	fights = FleetFight.query.filter(FleetFight.timestamp >= date).all()
-	requests = SRPRequest.query.filter(SRPRequest.approved is None or (SRPRequest.paid == False and SRPRequest.approved == True)).order_by(SRPRequest.timestamp.asc()).all()
-	return render_template('index.html',url=preston.get_authorize_url(), fights=fights, requests=requests)
+	fights = None
+	requests = None
+	transactions= None
+	balance = None
+	if current_user.is_authenticated:
+		fights = FleetFight.query.filter(FleetFight.timestamp >= date).all()
+		transactions = Transaction.query.order_by(Transaction.date.desc()).limit(config['HOMEPAGE_LOG_AMOUNT']).all()
+		if transactions:
+			balance = Transaction.query.order_by(Transaction.date.desc()).first().balance
+		else:
+			balance = 0
+		dbRequest = current_user.srp_requests.order_by(SRPRequest.timestamp.desc()).all()
+		requests = []
+		for r in dbRequest:
+			if r.approved is None or (r.approved == True and r.paid == False):
+				requests.append(r)
+
+	return render_template('index.html',url=preston.get_authorize_url(), fights=fights, requests=requests, transactions=transactions, balance=balance)
+
+@app.route('/transactions')
+@login_required
+def transaction_logs():
+	transactions = Transaction.query.order_by(Transaction.date.desc()).all()
+	return render_template('transaction_log.html',transactions=transactions)
 
 @app.route('/eve/callback')
 def eve_oauth_callback():
 	if 'error' in request.path:
 		app.logger.error('Error in EVE SSO callback: ' + request.url)
 		flash('There was an error in EVE\'s response', 'error')
-		return redirect(url_for('login'))
+		return redirect(url_for('index'))
 	try:
 		auth = preston.authenticate(request.args['code'])
 	except Exception as e:
 		app.logger.error('ESI signing error: ' + str(e))
 		flash('There was an authentication error signing you in.', 'error')
-		return redirect(url_for('login'))
+		return redirect(url_for('index'))
 	character_info = auth.whoami()
 	character = Character.query.filter(Character.character_id == character_info['CharacterID']).first()
-	if character:
+	if character and character.in_corp:
 		login_user(character)
 		session['roles'] = [role.role_name for role in current_user.roles.all()]
+
 		app.logger.debug('{} logged in with EVE SSO'.format(current_user.character_name))
 		flash('Logged in as {}'.format(current_user.character_name), 'success')
 		return redirect(url_for('index'))
 
 	flash('Your character is not in Wormbro! If you are in Wormbro, it is possible your API is still updating. If it has been several hours, contact a mentor.','error')
+	return redirect(url_for('index'))
+
+@app.route('/eve/corp/callback')
+def eve_oauth_corp_wallback():
+	if 'Admin' not in session['roles']:
+		return redirect(url_for('index'))
+
+	if 'error' in request.path:
+		app.logger.error('Error in EVE SSO callback: ' + request.url)
+		flash('There was an error in EVE\'s response', 'error')
+		return redirect(url_for('index'))
+	try:
+		auth = prestonCorp.authenticate(request.args['code'])
+		if ESICode.query.count() == 0:
+			#Make the new entry
+			code = ESICode(auth.access_token, auth.refresh_token)
+			app.logger.info("{} succesfully added ESI code with access token {} and refresh token {}".format(current_user.character_name,str(auth.access_token),str(auth.refresh_token)))
+			db.session.add(code)
+			db.session.commit()
+		else:
+			#Update existing entry
+			code = ESICode.query.first()
+			code.access_token = auth.access_token
+			code.refresh_token = auth.refresh_token
+			app.logger.info("{} succesfully updated ESI code with access token {} and refresh token {}".format(current_user.character_name,str(auth.access_token),str(auth.refresh_token)))
+			db.session.commit()
+
+		return redirect(url_for('admin'))
+	except Exception as e:
+		app.logger.error('ESI signing error: ' + str(e))
+		flash('There was an authentication error signing you in.', 'error')
+		return redirect(url_for('index'))
+
+	flash(code,'error')
 	return redirect(url_for('index'))
 
 @app.route('/logout/')
@@ -107,7 +172,92 @@ def logout():
 @app.route('/my_info/')
 @login_required
 def my_info():
-	return render_template("my_info.html")
+	r = current_user.srp_requests.order_by(SRPRequest.timestamp.desc()).all()
+	return render_template("my_info.html", requests=r,base_url=config['BASE_URL'])
+
+@app.route('/admin/', methods=['GET', 'POST'])
+@login_required
+def admin():
+	if "Admin" not in session['roles'] or "Director" not in session['roles']:
+		app.logger.info('Admin / Director access denied to {}'.format(current_user.character_name))
+		return redirect(url_for('index'))
+
+	if request.method == 'POST':
+		app.logger.debug('POST on admin by {}'.format(current_user.character_name))
+		character_table_id = request.form['character_table_id']
+		role_table_id = request.form['role_table_id']
+		character = Character.query.filter(Character.id == character_table_id).first()
+		if character is None or character.in_corp == False:
+			app.logger.info('Character with ID {} does not exist  or is not in corp'.format(str(character_table_id)))
+			flash('Character with ID {} does not exist  or is not in corp'.format(str(character_table_id)),'error')
+			return redirect(url_for('admin'))
+
+		role = Role.query.filter(Role.id == role_table_id).first()
+		if role is None:
+			app.logger.info('Role with ID {} does not exist'.format(str(role_table_id)))
+			flash('Role with ID {} does not exist'.format(str(role_table_id)),'error')
+			return redirect(url_for('admin'))
+
+		if role in character.roles:
+			app.logger.info('{} already had the role {}'.format(character.character_name, role.role_name))
+			flash('{} already had the role {}'.format(character.character_name, role.role_name),'error')
+			return redirect(url_for('admin'))
+
+		character.roles.append(role)
+		app.logger.info('Gave {} the role {}'.format(character.character_name, role.role_name))
+		flash('Gave {} the role {}'.format(character.character_name, role.role_name),'success')
+		db.session.commit()
+		return redirect(url_for('admin'))
+
+	#Get roles
+	roles = Role.query.order_by(Role.role_name.asc()).all()
+	characters = Character.query.order_by(Character.character_name.asc()).all()
+	return render_template("admin.html", roles=roles,base_url=config['BASE_URL'],characters=characters)	
+
+@app.route('/admin/revoke/<character_table_id>/<role_id>')
+@login_required
+def revoke_access(character_table_id, role_id):
+	if "Admin" not in session['roles'] or "Director" not in session['roles']:
+		app.logger.info('Admin / Director access denied to {}'.format(current_user.character_name))
+		return redirect(url_for('index'))
+
+	character = Character.query.filter_by(id=character_table_id).first()
+	if not character:
+		flash('Unknown member name', 'error')
+		return redirect(url_for('admin'))
+
+	for role in character.roles:
+		if str(role.id) == role_id:
+			app.logger.info('Removed {} from {}'.format(character.character_name,role.role_name))
+			flash('Removed {} from {}'.format(character.character_name,role.role_name),'success')
+			character.roles.remove(role)
+			break
+	db.session.commit()
+
+	return redirect(url_for('admin'))
+
+@app.route('/sync/')
+@login_required
+def sync():
+	if "Admin" not in session['roles'] or "Director" not in session['roles']:
+		app.logger.info('Admin / Director access denied to {}'.format(current_user.character_name))
+		return redirect(url_for('index'))
+
+	if sync_transactions() == False:
+		return redirect(url_for('admin'))
+
+	if sync_corp_members() == False:
+		return redirect(url_for('admin'))
+
+	flash('Successfully synced transactions and corp members','success')
+	return redirect(url_for('admin'))
+
+@app.route('/authorize/')
+@login_required
+def authorize_corp():
+	if "Admin" not in session['roles'] or "Director" not in session['roles']:
+		return redirect(url_for('index'))
+	return redirect(prestonCorp.get_authorize_url())
 
 @app.route('/new_fight/',methods=['GET', 'POST'])
 @login_required
@@ -165,6 +315,8 @@ def new_fight():
 @login_required
 def view_fight(id):
 	fight = FleetFight.query.filter_by(id=id).first()
+	closeDate = fight.timestamp + timedelta(days=config['OPEN_DAYS'])
+
 	if fight is None:
 		flash("Fight with id {} does not exist!".format(str(id)),'error')
 		return redirect(url_for('index'))
@@ -215,8 +367,8 @@ def view_fight(id):
 					return redirect(url_for('view_fight', id=id)) 
 
 				#Check if user is user on lossmail
-				if current_user.character_name != data[0]['victim']['characterName']:
-					flash("Zkillboard loss provided isn't the logged in character {}, but is from character {}!".format(current_user.character_name,data[0]['victim']['characterName']),'error')
+				if current_user.character_id != data[0]['victim']['character_id']:
+					flash("Zkillboard loss provided isn't the logged in character {}!".format(current_user.character_name),'error')
 					return redirect(url_for('view_fight', id=id)) 
 
 				#Calculate payout
@@ -225,8 +377,9 @@ def view_fight(id):
 					payout = config['MAX_SRP']
 
 				#Commit SRP
-				SRP = SRPRequest(current_user.character_name,kId,data[0]['zkb']['totalValue'],price,",".join(options),request.form['reddit'])
-				db.session.add(SRP)
+				SRP = SRPRequest(kId,data[0]['zkb']['totalValue'],payout,",".join(options),request.form['reddit'])
+				#db.session.add(SRP)
+				current_user.srp_requests.append(SRP)
 				fight.requests.append(SRP)
 				db.session.commit()
 				return redirect(url_for('my_info'))
@@ -271,7 +424,7 @@ def view_fight(id):
 
 				#Check if user is user on lossmail
 				if current_user.character_id != data[0]['victim']['character_id']:
-					flash("Zkillboard loss provided isn't the logged in character {}, but is from character {}!".format(current_user.character_id,data[0]['victim']['character_id']),'error')
+					flash("Zkillboard loss provided isn't the logged in character {}!".format(current_user.character_name),'error')
 					return redirect(url_for('view_fight', id=id)) 
 
 				#Calculate payout
@@ -280,11 +433,12 @@ def view_fight(id):
 					payout = config['MAX_SRP']
 
 				#Commit SRP
-				SRP = SRPRequest(current_user.character_name,kId,data[0]['zkb']['totalValue'],payout,",".join(options),request.form['reddit'])
-				db.session.add(SRP)
+				SRP = SRPRequest(kId,data[0]['zkb']['totalValue'],payout,",".join(options),request.form['reddit'])
+				current_user.srp_requests.append(SRP)
 				fight.requests.append(SRP)
 				db.session.commit()
 				return redirect(url_for('my_info'))
+
 		elif 'accepted' in request.form:
 			# Look for specific request
 			srpRequest = SRPRequest.query.filter_by(id=int(request.form['accepted'])).first()
@@ -300,7 +454,17 @@ def view_fight(id):
 			srpRequest.approved = False
 			srpRequest.rejectionReason = request.form['rejReason']
 			db.session.commit()
-	return render_template('view_fight.html',fight=fight)
+		elif 'pay' in request.form:
+			#Look for specific request
+			srpRequest = SRPRequest.query.filter_by(id=int(request.form['pay'])).first()
+			srpRequest.paid = True
+			db.session.commit()
+		elif 'unpay' in request.form:
+			#Look for specific request
+			srpRequest = SRPRequest.query.filter_by(id=int(request.form['unpay'])).first()
+			srpRequest.paid = False
+			db.session.commit()
+	return render_template('view_fight.html',fight=fight, closeDate=closeDate)
 
 
 @app.route('/remove_fight/<int:id>')
@@ -340,7 +504,7 @@ def remove_request(id):
 		return redirect(url_for('index'))
 
 	#Only be able to remove the request if you're the creator of the fight, the creator of the request, admin or director
-	if current_user.character_name == request.characterName or current_user.character_name == fight.mentor or "Director" in session['roles'] or "Admin" in session['roles']:
+	if current_user.character_id == request.characterId or current_user.character_name == fight.mentor or "Director" in session['roles'] or "Admin" in session['roles']:
 		db.session.delete(request)
 		db.session.commit()
 		flash("Succesfully removed request",'success')
@@ -350,52 +514,187 @@ def remove_request(id):
 
 	return redirect(url_for('index'))
 
+def sync_corp_members():
+	#Get access token
+	token = ESICode.query.first()
+	if token is None:
+		flash("ESI Authorization was not provided! Contact an admin to fix this problem!","error")
+		return False
 
-@app.route('/dancefloor/')
-def dancefloor():
-	db.drop_all()
-	db.create_all()
-	char1 = Character('Alex Kommorov',92399833)
-	char2 = Character('Corporate Kommorov',96639141)
-	char3 = Character('Ilya Kommorov',92351650)
-	role1 = Role('Mentor')
-	role2 = Role('Admin')
-	role3 = Role('Director')
-	db.session.add(char1)
-	db.session.add(char2)
-	db.session.add(char3)
-	db.session.add(role1)
-	db.session.add(role2)
-	db.session.add(role3)
-	db.session.commit()
-	char1.roles.append(role1)
-	char1.roles.append(role2)
-	char1.roles.append(role3)
-	char2.roles.append(role1)
-	db.session.commit()
-	return redirect(url_for('index'))
-
-@asyncio.coroutine
-def corp_update_task():
-	while True:
-		corp_update()
-		yield from asyncio.sleep(config['CORP_UPDATE_TIME'])
-
-def corp_update():
-	#Get all corp members
-	allianceRequest = requests.get("https://esi.tech.ccp.is/latest/corporations/98134538/members/?datasource=tranquility&token=IA1WFvXN2KxYmawsSdshnYGnDK80IoIbDVMYulC607rvJusPfZxCSzEbw1sFpDSMiGYJ5V7DZXn3vcVM3nLx8Q2", headers={
+	app.logger.info("Making ESI request to https://esi.tech.ccp.is/latest/corporations/{}/members/?datasource=tranquility&token={}".format(str(config['CORP_ID']),token.access_token))
+	allianceRequest = requests.get("https://esi.tech.ccp.is/latest/corporations/{}/members/?datasource=tranquility&token={}".format(str(config['CORP_ID']),token.access_token), headers={
 		'User-Agent': 'Maintainer: '+ config['MAINTAINER']
 		})
-	print(allianceRequest.json())
+
+	#If token was invalid, use refresh token
+	if 'sso_status' in allianceRequest.json() and allianceRequest.json()['sso_status'] == 400:
+		app.logger.info("Corp access token expired, requesting a new one")
+		auth = prestonCorp.use_refresh_token(token.refresh_token)
+		token.access_token = auth.access_token
+		app.logger.info("New access token provided, updating database")
+		db.session.commit()
+		my_info()
+	elif 'sso_status' not in allianceRequest.json():
+		#Query all characters in the database
+		databaseList = [row[0] for row in db.session.query(Character.character_id).all()]
+		memberList = [row['character_id'] for row in allianceRequest.json()]
+
+		#Loop over all members in corp
+		for member in memberList:
+			if member not in databaseList:
+				#Make ESI request
+				app.logger.info("Making ESI request to https://esi.tech.ccp.is/latest/characters/{}/?datasource=tranquility".format(str(member)))
+				memberRequest = requests.get("https://esi.tech.ccp.is/latest/characters/{}/?datasource=tranquility".format(str(member)), headers={
+					'User-Agent': 'Maintainer: '+ config['MAINTAINER']
+					})
+				#If there is an error, continue to next person
+				if 'error' in memberRequest.json():
+					app.logger.error("Character with ID {} does not exist! Moving on ...".format(str(member)))
+					continue
+
+				#Add character to database
+				character = Character(memberRequest.json()['name'],member,True)
+				db.session.add(character)
+				app.logger.info("Character {} joined corp, and was added to the database".format(memberRequest.json()['name']))
+
+		#Loop over all members in database
+		for dbMember in databaseList:
+			character = Character.query.filter(Character.character_id == dbMember).first()
+			if character.in_corp and dbMember not in memberList:
+				character.in_corp = False
+				app.logger.info("Character {} left corp, and was marked as such in the database".format(character.character_name))
+
+		db.session.commit()
+		return True
+
+def sync_transactions():
+	#Get access token
+	token = ESICode.query.first()
+	if token is None:
+		flash("ESI Authorization was not provided! Contact an admin to fix this problem!","error")
+		return False
+
+	#Get last token
+	lastTransaction = Transaction.query.order_by(Transaction.date.asc()).first()
+	lastId = None
+	lastIdString = "" 
+	if lastTransaction:
+		lastId = lastTransaction.ref_id
+		lastIdString = "&from_id={}".format(str(lastTransaction.ref_id)) 
+
+	app.logger.info("Making ESI request to https://esi.tech.ccp.is/latest/corporations/{}/wallets/{}/journal/?datasource=tranquility{}&token={}".format(
+		str(config['CORP_ID']),str(config['CORP_WALLET_DIVISION']),lastIdString,token.access_token))
+	transactionRequest = requests.get("https://esi.tech.ccp.is/latest/corporations/{}/wallets/{}/journal/?datasource=tranquility{}&token={}".format(
+		str(config['CORP_ID']),str(config['CORP_WALLET_DIVISION']),lastIdString,token.access_token), headers={
+		'User-Agent': 'Maintainer: '+ config['MAINTAINER']
+		})
+
+	#If token was invalid, use refresh token
+	if 'sso_status' in transactionRequest.json() and transactionRequest.json()['sso_status'] == 400:
+		app.logger.info("Corp access token expired, requesting a new one")
+		auth = prestonCorp.use_refresh_token(token.refresh_token)
+		token.access_token = auth.access_token
+		app.logger.info("New access token provided, updating database")
+		db.session.commit()
+		my_info()
+	elif 'sso_status' not in transactionRequest.json():
+		#Get JSON
+		jsonTransaction = transactionRequest.json()
+		for jsonRow in jsonTransaction:
+			#Check if it was the requested id
+			if jsonRow['ref_id'] == lastId:
+				continue
+
+			#Convert date to datetime
+			dateObject = datetime.strptime(jsonRow['date'], '%Y-%m-%dT%H:%M:%SZ')
+
+			#Check first party data
+			fp_id = None
+			fp_type = None
+			fp_name = None
+			if 'first_party_id' in jsonRow and 'first_party_type' in jsonRow:
+				fp_id = jsonRow['first_party_id']
+				fp_type = jsonRow['first_party_type']
+				#Name search
+				if fp_type == "character":
+					characterRequest = requests.get("https://esi.tech.ccp.is/latest/characters/{}/?datasource=tranquility".format(str(fp_id)), headers={
+							'User-Agent': 'Maintainer: '+ config['MAINTAINER']
+							})
+					if 'error' in characterRequest.json():
+						fp_name = "Unknown"
+					else:
+						fp_name = characterRequest.json()['name'] 
+				elif fp_type == "corporation":
+					corpRequest = requests.get("https://esi.tech.ccp.is/latest/corporations/{}/?datasource=tranquility".format(str(fp_id)), headers={
+						'User-Agent': 'Maintainer: '+ config['MAINTAINER']
+						})
+					if 'error' in corpRequest.json():
+						fp_name = "Unknown"
+					else:
+						fp_name = corpRequest.json()['corporation_name']  
+				else:
+					fp_name = "Unknown Type"
+
+			#Check second party data
+			sp_id = None
+			sp_type = None
+			sp_name = None
+			if 'second_party_id' in jsonRow and 'second_party_type' in jsonRow:
+				sp_id = jsonRow['second_party_id']
+				sp_type = jsonRow['second_party_type']
+				#Name search
+				if sp_type == "character":
+					characterRequest = requests.get("https://esi.tech.ccp.is/latest/characters/{}/?datasource=tranquility".format(str(sp_id)), headers={
+							'User-Agent': 'Maintainer: '+ config['MAINTAINER']
+							})
+					if 'error' in characterRequest.json():
+						sp_name = "Unknown"
+					else:
+						sp_name = characterRequest.json()['name'] 
+				elif sp_type == "corporation":
+					corpRequest = requests.get("https://esi.tech.ccp.is/latest/corporations/{}/?datasource=tranquility".format(str(sp_id)), headers={
+						'User-Agent': 'Maintainer: '+ config['MAINTAINER']
+						})
+					if 'error' in corpRequest.json():
+						sp_name = "Unknown"
+					else:
+						sp_name = corpRequest.json()['corporation_name']  
+				else:
+					sp_name = "Unknown Type"
+
+			#Check reason data
+			reason = None
+			if 'reason'  in jsonRow:
+				reason = jsonRow['reason']
+
+			dbTrans = Transaction(dateObject, jsonRow['ref_id'],jsonRow['ref_type'],fp_id,fp_type,fp_name,sp_id,sp_type,sp_name,jsonRow['amount'],jsonRow['balance'], reason)
+			db.session.add(dbTrans)
+
+		db.session.commit()
+		return True
+
+# @asyncio.coroutine
+# def corp_update_task():
+# 	while True:
+# 		corp_update()
+# 		yield from asyncio.sleep(config['CORP_UPDATE_TIME'])
+
+# def corp_update():
+# 	#Get all corp members
+# 	#allianceRequest = requests.get("https://esi.tech.ccp.is/latest/corporations/98134538/members/?datasource=tranquility&token=IA1WFvXN2KxYmawsSdshnYGnDK80IoIbDVMYulC607rvJusPfZxCSzEbw1sFpDSMiGYJ5V7DZXn3vcVM3nLx8Q2", headers={
+# 		#'User-Agent': 'Maintainer: '+ config['MAINTAINER']
+# 		#})
+# 	#print(allianceRequest.json())
+# 	test = 0
 
 
-task = asyncio.Task(corp_update_task())
-loop = asyncio.get_event_loop()
+# task = asyncio.Task(corp_update_task())
+# loop = asyncio.get_event_loop()
 
-try:
-    loop.run_until_complete(task)
-except Exception as e:
-    app.logger.error("Error in loop: {}".format(str(e)))
+# try:
+#     loop.run_until_complete(task)
+# except Exception as e:
+#     app.logger.error("Error in loop: {}".format(str(e)))
 
 #Run app
 if __name__ == '__main__':

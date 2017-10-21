@@ -11,6 +11,9 @@
 						<div class="col s12">
 							<p>{{fight.date.strftime('%Y/%m/%d %H:%M')}}</p>
 						</div>
+						<div class="col s12">
+							<p><strong>Close Date: </strong>{{closeDate.strftime('%Y/%m/%d %H:%M')}}</p>
+						</div>
 						<div class="col s4">
 							<p><b>FC:</b> {{fight.fc}}</p>
 						</div>
@@ -105,7 +108,7 @@
 				<ul class="collapsible" data-collapsible="accordion">
 					{% for request in fight.requests %}
 					<li>
-						<div class="collapsible-header"><span class="left">{{request.characterName}}</span>
+						<div class="collapsible-header"><span class="left">{{request.Characters.character_name}}</span>
 							<span class="right">
 							{% if request.paid %}
 								Paid
@@ -136,7 +139,7 @@
 										<th>Payout</th>
 										<th></th>
 										<th></th>
-										{% if current_user.character_name == request.characterName or current_user.character_name == fight.mentor or 
+										{% if current_user.character_id == request.characterId or current_user.character_name == fight.mentor or 
 										"Director" in session['roles'] or "Admin" in session['roles'] %}
 											<th></th>
 										{% endif %}
@@ -195,18 +198,28 @@
 												<form method="post">
 													<button class="btn waves-effect waves-light btn-small light-green" type="submit" name="accepted" value="{{request.id}}">Accept</button>
 	                        					</form>
+	                        				{% elif "Director" in session['roles'] or "Admin" in session['roles'] %}
+	                        					{% if request.paid == false %}
+		                        					<form method="post">
+														<button class="btn waves-effect waves-light btn-small light-green" type="submit" name="pay" value="{{request.id}}">Pay</button>
+		                        					</form>
+	                        					{% else %}
+		                        					<form method="post">
+														<button class="btn waves-effect waves-light btn-small red accent-4" type="submit" name="unpay" value="{{request.id}}">Unpay</button>
+		                        					</form>
+	                        					{% endif %}
                         					{% endif %}
 										</td>
 										<td>
-											{% if request.approved != false %}
+											{% if request.approved == true and request.paid == false%}
 												<a class="waves-effect waves-light btn red accent-4" onclick="showModalWithVariable(this, 'modalRejection','rejID',{{request.id}}); return false;">Reject</a>
-											{% else %}
+											{% elif request.approved == false %}
 												<a class="waves-effect waves-light btn grey darken-1" 
 												onclick="showModalWithVariable(this, 'modalRejectionReason','rejReasonId','{{request.rejectionReason}}'); return false;">Reason</a>
                         					{% endif %}
 										</td>
-										{% if current_user.character_name == request.characterName or current_user.character_name == fight.mentor or 
-										"Director" in session['roles'] or "Admin" in session['roles'] %}
+										{% if (current_user.character_id == request.characterId or current_user.character_name == fight.mentor or 
+										"Director" in session['roles'] or "Admin" in session['roles']) and request.paid == false %}
 											<td>
 												<a class="waves-effect waves-light btn red accent-4" href="{{url_for('remove_request',id=request.id)}}" 
 												onclick="showModal(this, 'md2'); return false;">Delete</a>

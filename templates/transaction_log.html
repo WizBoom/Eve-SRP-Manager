@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content%}
+<h2 class="center">Transaction Logs</h2>
+<table>
+	<thead>
+		<tr>
+			<th>Date</th>
+			<th>Type</th>
+			<th>Sender ID</th>
+			<th>Sender Type</th>
+			<th>Sender Name</th>
+			<th>Receiver ID</th>
+			<th>Receiver Type</th>
+			<th>Receiver Name</th>
+			<th>Amount</th>
+			<th>Balance</th>
+			<th>Reason</th>
+		</tr>
+	</thead>
+	<tbody>
+		{% for transaction in transactions %}
+		<tr>
+			<td>{{transaction.date}}</td>
+			<td>{{ transaction.ref_type.replace("_", " ").title() }}</td>
+			<td>{{transaction.first_party_id}}</td>
+			<td>{{transaction.first_party_type.title()}}</td>
+			<td>{{transaction.first_party_name}}</td>
+			<td>{{transaction.second_party_id}}</td>
+			<td>{{transaction.second_party_type.title()}}</td>
+			<td>{{transaction.second_party_name}}</td>
+			<td>{{ '{0:,.2f}'.format(transaction.amount) }} ISK</td>
+			<td>{{ '{0:,.2f}'.format(transaction.balance) }} ISK</td>
+			<td>{{transaction.reason}}</td>
+		</tr>
+		{% endfor %}
+	</tbody>
+</table>
+{% endblock %}
