@@ -4,6 +4,9 @@
 		<div class="row">
 			<div class="center">
 				<h4>{{fight.title}}</h4>
+				{% if closed == true %}
+				<h4>CLOSED</h4>
+				{% endif %}
 			</div>
 			<div class="card-panel">
 				<div class="center">
@@ -27,78 +30,80 @@
 				</div>
 			</div>
 		</div>
-		<br>
-		<div class="row">
-			<div class="center">
-				<h4>Apply for SRP</h4>
-			</div>
-			<div class="card-panel">
-				<div class="row">
-				    <div class="col s12">
-				    	<ul class="tabs">
-					        <li class="tab col s3"><a class="active" href="#logi">Logi</a></li>
-					        <li class="tab col s3"><a href="#fc">FC</a></li>
-				    	</ul>
-				    </div>
-				    <div id="logi" class="col s12">
-				    	<br>
-				    	<div class="row">
-						    <form class="col s12" method="post" name="logi" onsubmit="return validateFormLogi()">
-								<div class="row">
-								    <div class="input-field col s6">
-									    <input name="zkill" type="text" class="validate">
-									    <label for="zkill">Zkillboard Lossmail Link</label>
-								    </div>
-									<div class="input-field col s6">
-									    <input name="reddit" type="text" class="validate">
-									    <label for="reddit">Reddit Comment Link</label>
-								    </div>
-									<div class="input-field col s3">
-										<input type="checkbox" class="filled-in" id="recL" name="recording"/>
-										<label for="recL">Provided recording</label>
-								    </div>
-								</div>
-								<div class="row">
-									<div class="input-field col s2">
-				    					<button class="btn btn-default grey darken-3" type="submit" name="type" value="logi">Post</button>
+		{% if closed == false %}
+			<br>
+			<div class="row">
+				<div class="center">
+					<h4>Apply for SRP</h4>
+				</div>
+				<div class="card-panel">
+					<div class="row">
+					    <div class="col s12">
+					    	<ul class="tabs">
+						        <li class="tab col s3"><a class="active" href="#logi">Logi</a></li>
+						        <li class="tab col s3"><a href="#fc">FC</a></li>
+					    	</ul>
+					    </div>
+					    <div id="logi" class="col s12">
+					    	<br>
+					    	<div class="row">
+							    <form class="col s12" method="post" name="logi" onsubmit="return validateFormLogi()">
+									<div class="row">
+									    <div class="input-field col s6">
+										    <input name="zkill" type="text" class="validate">
+										    <label for="zkill">Zkillboard Lossmail Link</label>
+									    </div>
+										<div class="input-field col s6">
+										    <input name="reddit" type="text" class="validate">
+										    <label for="reddit">Reddit Comment Link</label>
+									    </div>
+										<div class="input-field col s3">
+											<input type="checkbox" class="filled-in" id="recL" name="recording"/>
+											<label for="recL">Provided recording</label>
+									    </div>
 									</div>
-								</div>
-						    </form>
-				    	</div>
-				    </div>
-				    <div id="fc" class="col s12">
-				    	<br>
-				    	<div class="row">
-						    <form class="col s12" method="post" name="fc" onsubmit="return validateFormFC()">
-								<div class="row">
-								    <div class="input-field col s6">
-									    <input name="zkill" type="text" class="validate">
-									    <label for="zkill">Zkillboard Lossmail Link</label>
-								    </div>
-									<div class="input-field col s6">
-									    <input name="reddit" type="text" class="validate">
-									    <label for="reddit">Reddit Comment Link</label>
-								    </div>
-									<div class="input-field col s3">
-										<input type="checkbox" class="filled-in" id="recFC" name="recording"/>
-										<label for="recFC">Provided recording</label>
-								    </div>
-									<div class="input-field col s3">
-										<input type="checkbox" class="filled-in" id="aarFC" name="after-action-report"/>
-										<label for="aarFC">Provided AAR</label>
-								    </div>
-								</div>
-								<div class="row">
-									<div class="input-field col s2">
-				    					<button class="btn btn-default grey darken-3" type="submit" name="type" value="fc">Post</button>
+									<div class="row">
+										<div class="input-field col s2">
+					    					<button class="btn btn-default grey darken-3" type="submit" name="type" value="logi">Post</button>
+										</div>
 									</div>
-								</div>
-						    </form>
-				    	</div>
-				    </div>
-			  	</div>
-			</div>
-	   	</div>
+							    </form>
+					    	</div>
+					    </div>
+					    <div id="fc" class="col s12">https://zkillboard.com/kill/64753655/
+					    	<br>
+					    	<div class="row">
+							    <form class="col s12" method="post" name="fc" onsubmit="return validateFormFC()">
+									<div class="row">
+									    <div class="input-field col s6">
+										    <input name="zkill" type="text" class="validate">
+										    <label for="zkill">Zkillboard Lossmail Link</label>
+									    </div>
+										<div class="input-field col s6">
+										    <input name="reddit" type="text" class="validate">
+										    <label for="reddit">Reddit Comment Link</label>
+									    </div>
+										<div class="input-field col s3">
+											<input type="checkbox" class="filled-in" id="recFC" name="recording"/>
+											<label for="recFC">Provided recording</label>
+									    </div>
+										<div class="input-field col s3">
+											<input type="checkbox" class="filled-in" id="aarFC" name="after-action-report"/>
+											<label for="aarFC">Provided AAR</label>
+									    </div>
+									</div>
+									<div class="row">
+										<div class="input-field col s2">
+					    					<button class="btn btn-default grey darken-3" type="submit" name="type" value="fc">Post</button>
+										</div>
+									</div>
+							    </form>
+					    	</div>
+					    </div>
+				  	</div>
+				</div>
+		   	</div>
+	   	{% endif %}
 		{% if "Mentor" in session['roles'] or "Director" in session['roles'] or "Admin" in session['roles'] %}
 		   	<br>
 		   	<div class="row">

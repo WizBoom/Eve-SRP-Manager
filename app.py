@@ -464,7 +464,8 @@ def view_fight(id):
 			srpRequest = SRPRequest.query.filter_by(id=int(request.form['unpay'])).first()
 			srpRequest.paid = False
 			db.session.commit()
-	return render_template('view_fight.html',fight=fight, closeDate=closeDate)
+
+	return render_template('view_fight.html',fight=fight, closeDate=closeDate,closed=datetime.utcnow() > closeDate)
 
 
 @app.route('/remove_fight/<int:id>')
