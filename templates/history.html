@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content%}
+<div class="row">
+	<div class="center">
+		<h4>Fleet Fights</h4>
+	</div>
+	<div class="card-panel">
+		{% if fights %}
+			<table>
+				<thead>
+					<tr>
+						<th>Title</th>
+						<th>Date</th>
+						<th>FC</th>
+						<th>Mentor</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for fight in fights %}
+					<tr>
+						<td>{{ fight.title }}</td>
+						<td>{{ fight.date.strftime('%Y/%m/%d %H:%M') }}</td>
+						<td>{{ fight.fc }}</td>
+						<td>{{ fight.mentor }}</td>
+						<td>
+							<a href="/view_fight/{{ fight.id }}"
+          							class="btn waves-effect waves-light btn-small grey darken-1">
+          							View Fight
+        							</a>
+						</td>
+					</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		{% else %}
+			<p>No Fights</p>
+		{% endif %}
+	</div>
+</div>
+{% endblock %}

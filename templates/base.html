@@ -33,8 +33,8 @@
                   <li><a href="{{ url_for('my_info') }}">My Info</a></li>
                   {% if "Mentor" in session['roles'] or "Director" in session['roles'] or "Admin" in session['roles'] %}
                     <li><a href="{{ url_for('new_fight') }}">New Fight</a></li>
+                    <li><a href="{{ url_for('history') }}">History</a></li>
                     {% if "Director" in session['roles'] or "Admin" in session['roles'] %}
-                      <li><a href="{{ url_for('index') }}">History</a></li>
                       <li><a href="{{ url_for('admin') }}">Admin</a></li>
                     {% endif %}
                   {% endif %}

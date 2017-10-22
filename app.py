@@ -214,6 +214,16 @@ def admin():
 	characters = Character.query.order_by(Character.character_name.asc()).all()
 	return render_template("admin.html", roles=roles,base_url=config['BASE_URL'],characters=characters)	
 
+@app.route('/history/')
+@login_required
+def history():
+	if "Admin" not in session['roles'] and "Director" not in session['roles'] and "Mentor" not in session['roles']:
+		app.logger.info('Admin / Director / Mentor access denied to {}'.format(current_user.character_name))
+		return redirect(url_for('index'))
+
+	fights = FleetFight.query.order_by(FleetFight.date.desc()).all()
+	return render_template("history.html", fights=fights)	
+
 @app.route('/admin/revoke/<character_table_id>/<role_id>')
 @login_required
 def revoke_access(character_table_id, role_id):
