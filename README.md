@@ -1,8 +1,8 @@
 # Eve-SRP-Manager
-An application to handle SRP management.
+An application to make handling SRP management a lot less convoluted.
 
 ## Installation
-Download, install the Python prerequisites, and copy / edit the config example files:
+Download, install all of the Python prerequisites, and copy / edit the config example files:
 
 ```bash
 $ git clone https://github.com/WizBoom/Eve-SRP-Manager.git
@@ -17,7 +17,7 @@ $ cp praw.ini.example praw.ini
 Edit config.json and praw.ini file.
 
 ## Database.
-If you do not have the correct database yet:
+If you do not have the correct database set up yet:
 
 ```bash
 $ python create_database.py
