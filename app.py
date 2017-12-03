@@ -12,7 +12,9 @@ import praw
 import re
 import requests
 import base64
-import asyncio
+import atexit
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.interval import IntervalTrigger
 
 # config setup
 with open('config.json') as f:
@@ -45,6 +47,10 @@ app.logger.addHandler(handler)
 #Create sqlalchemy object
 db = SQLAlchemy(app)
 
+#Scheduler
+scheduler = BackgroundScheduler()
+scheduler.start()
+
 from models import *
 
 user_agent = 'GETIN SRP App ({})'.format(config['MAINTAINER'])
@@ -69,6 +75,14 @@ reddit = praw.Reddit('srp_manager')
 subreddit = reddit.subreddit(config["SUBREDDIT"])
 
 app.logger.info('Initialization complete')
+
+def get_current_roles():
+	if current_user.is_authenticated:
+		return [role.role_name for role in current_user.roles.all()]
+	else:
+		return None
+
+app.jinja_env.globals.update(get_current_roles=get_current_roles)
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -118,7 +132,7 @@ def eve_oauth_callback():
 	character = Character.query.filter(Character.character_id == character_info['CharacterID']).first()
 	if character and character.in_corp:
 		login_user(character)
-		session['roles'] = [role.role_name for role in current_user.roles.all()]
+		#session['roles'] = [role.role_name for role in current_user.roles.all()]
 
 		app.logger.debug('{} logged in with EVE SSO'.format(current_user.character_name))
 		flash('Logged in as {}'.format(current_user.character_name), 'success')
@@ -129,7 +143,7 @@ def eve_oauth_callback():
 
 @app.route('/eve/corp/callback')
 def eve_oauth_corp_wallback():
-	if 'Admin' not in session['roles']:
+	if 'Admin' not in get_current_roles():
 		return redirect(url_for('index'))
 
 	if 'error' in request.path:
@@ -178,7 +192,8 @@ def my_info():
 @app.route('/admin/', methods=['GET', 'POST'])
 @login_required
 def admin():
-	if "Admin" not in session['roles'] and "Director" not in session['roles']:
+	roles = get_current_roles()
+	if "Admin" not in roles and "Director" not in roles:
 		app.logger.info('Admin / Director access denied to {}'.format(current_user.character_name))
 		return redirect(url_for('index'))
 
@@ -217,7 +232,8 @@ def admin():
 @app.route('/history/')
 @login_required
 def history():
-	if "Admin" not in session['roles'] and "Director" not in session['roles'] and "Mentor" not in session['roles']:
+	roles = get_current_roles()
+	if "Admin" not in roles and "Director" not in roles and "Mentor" not in roles:
 		app.logger.info('Admin / Director / Mentor access denied to {}'.format(current_user.character_name))
 		return redirect(url_for('index'))
 
@@ -227,7 +243,8 @@ def history():
 @app.route('/admin/revoke/<character_table_id>/<role_id>')
 @login_required
 def revoke_access(character_table_id, role_id):
-	if "Admin" not in session['roles'] and "Director" not in session['roles']:
+	roles = get_current_roles()
+	if "Admin" not in roles and "Director" not in roles:
 		app.logger.info('Admin / Director access denied to {}'.format(current_user.character_name))
 		return redirect(url_for('index'))
 
@@ -249,7 +266,8 @@ def revoke_access(character_table_id, role_id):
 @app.route('/sync/')
 @login_required
 def sync():
-	if "Admin" not in session['roles'] and "Director" not in session['roles']:
+	roles = get_current_roles()
+	if "Admin" not in roles and "Director" not in roles:
 		app.logger.info('Admin / Director access denied to {}'.format(current_user.character_name))
 		return redirect(url_for('index'))
 
@@ -265,14 +283,16 @@ def sync():
 @app.route('/authorize/')
 @login_required
 def authorize_corp():
-	if "Admin" not in session['roles'] and "Director" not in session['roles']:
+	roles = get_current_roles()
+	if "Admin" not in roles and "Director" not in roles:
 		return redirect(url_for('index'))
 	return redirect(prestonCorp.get_authorize_url())
 
 @app.route('/new_fight/',methods=['GET', 'POST'])
 @login_required
 def new_fight():
-	if "Mentor" in session['roles'] or "Director" in session['roles'] or "Admin" in session['roles']:
+	roles = get_current_roles()
+	if "Mentor" in roles or "Director" in roles or "Admin" in roles:
 		if request.method == 'POST':
 			try:
 				date = datetime.strptime(request.form['date'],'%Y/%m/%d %H:%M')
@@ -481,12 +501,13 @@ def view_fight(id):
 @app.route('/remove_fight/<int:id>')
 @login_required
 def remove_fight(id):
+	roles = get_current_roles()
 	fight = FleetFight.query.filter(FleetFight.id == id).first()
 	if fight is None:
 		flash("Fight with id {} does not exist!".format(str(id)),'error')
 		return redirect(url_for('index'))
 
-	if ("Mentor" in session['roles'] and current_user.character_name == fight.mentor) or "Director" in session['roles'] or "Admin" in session['roles']:
+	if ("Mentor" in roles and current_user.character_name == fight.mentor) or "Director" in roles or "Admin" in roles:
 		app.logger.info("{} is deleting fight {}".format(current_user.character_name, fight.title))
 
 		#Remove reddit post
@@ -508,6 +529,7 @@ def remove_fight(id):
 @app.route('/remove_request/<int:id>')
 @login_required
 def remove_request(id):
+	roles = get_current_roles()
 	request = SRPRequest.query.filter(SRPRequest.id == id).first()
 	fight = FleetFight.query.filter(FleetFight.id == request.fightId).first()
 	if request is None or fight is None:
@@ -515,7 +537,7 @@ def remove_request(id):
 		return redirect(url_for('index'))
 
 	#Only be able to remove the request if you're the creator of the fight, the creator of the request, admin or director
-	if current_user.character_id == request.characterId or current_user.character_name == fight.mentor or "Director" in session['roles'] or "Admin" in session['roles']:
+	if current_user.character_id == request.characterId or current_user.character_name == fight.mentor or "Director" in roles or "Admin" in roles:
 		db.session.delete(request)
 		db.session.commit()
 		flash("Succesfully removed request",'success')
@@ -529,7 +551,8 @@ def sync_corp_members():
 	#Get access token
 	token = ESICode.query.first()
 	if token is None:
-		flash("ESI Authorization was not provided! Contact an admin to fix this problem!","error")
+		app.logger.error("ESI authorization was not provided!")
+		#flash("ESI Authorization was not provided! Contact an admin to fix this problem!","error")
 		return False
 
 	app.logger.info("Making ESI request to https://esi.tech.ccp.is/latest/corporations/{}/members/?datasource=tranquility&token={}".format(str(config['CORP_ID']),token.access_token))
@@ -583,7 +606,7 @@ def sync_transactions():
 	#Get access token
 	token = ESICode.query.first()
 	if token is None:
-		flash("ESI Authorization was not provided! Contact an admin to fix this problem!","error")
+		app.logger.error("ESI authorization was not provided!")
 		return False
 
 	#Get last token
@@ -686,28 +709,20 @@ def sync_transactions():
 		db.session.commit()
 		return True
 
-# @asyncio.coroutine
-# def corp_update_task():
-# 	while True:
-# 		corp_update()
-# 		yield from asyncio.sleep(config['CORP_UPDATE_TIME'])
+def corp_update_task():
+	app.logger.info("Starting scheduled sync...")
+	sync_transactions()
+	sync_corp_members()
+	app.logger.info("Scheduled sync completed.")
 
-# def corp_update():
-# 	#Get all corp members
-# 	#allianceRequest = requests.get("https://esi.tech.ccp.is/latest/corporations/98134538/members/?datasource=tranquility&token=IA1WFvXN2KxYmawsSdshnYGnDK80IoIbDVMYulC607rvJusPfZxCSzEbw1sFpDSMiGYJ5V7DZXn3vcVM3nLx8Q2", headers={
-# 		#'User-Agent': 'Maintainer: '+ config['MAINTAINER']
-# 		#})
-# 	#print(allianceRequest.json())
-# 	test = 0
-
-
-# task = asyncio.Task(corp_update_task())
-# loop = asyncio.get_event_loop()
-
-# try:
-#     loop.run_until_complete(task)
-# except Exception as e:
-#     app.logger.error("Error in loop: {}".format(str(e)))
+scheduler.add_job(
+    func=corp_update_task,
+    trigger=IntervalTrigger(seconds=config['CORP_UPDATE_TIME']),
+    id='syncing_job',
+    name='Sync the members',
+    replace_existing=True)
+# Shut down the scheduler when exiting the app
+atexit.register(lambda: scheduler.shutdown())
 
 #Run app
 if __name__ == '__main__':

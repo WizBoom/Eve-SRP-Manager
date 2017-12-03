@@ -31,10 +31,10 @@
             <ul id="nav-mobile" class="right hide-on-med-and-down">
                 {% if current_user.is_authenticated %}
                   <li><a href="{{ url_for('my_info') }}">My Info</a></li>
-                  {% if "Mentor" in session['roles'] or "Director" in session['roles'] or "Admin" in session['roles'] %}
+                  {% if 'Mentor' in get_current_roles() or 'Director' in get_current_roles() or 'Admin' in get_current_roles() %}
                     <li><a href="{{ url_for('new_fight') }}">New Fight</a></li>
                     <li><a href="{{ url_for('history') }}">History</a></li>
-                    {% if "Director" in session['roles'] or "Admin" in session['roles'] %}
+                    {% if 'Director' in get_current_roles() or 'Admin' in get_current_roles() %}
                       <li><a href="{{ url_for('admin') }}">Admin</a></li>
                     {% endif %}
                   {% endif %}
@@ -63,6 +63,17 @@
           {% endfor %}
           {% endif %}
         {% endwith %}
+        
+        <br>
+          <div class="card-panel">
+            <h4>Disclaimer</h4>
+            <p>
+              Welcome to the SRP manager. Right now, this is a product that is still in development, but I wanted to show you guys how it will work.
+              Right now, I need people to look for bugs, and report them <a href="https://www.reddit.com/r/GETIN_Eve/comments/77tzt3/the_srp_manager_you/">here.</a> Thanks!
+            </p>
+          </div>
+       <br>
+
         {% block content %}{% endblock content %}
       </div>
     </main>
