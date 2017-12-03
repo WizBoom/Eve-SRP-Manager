@@ -567,7 +567,7 @@ def sync_corp_members():
 		token.access_token = auth.access_token
 		app.logger.info("New access token provided, updating database")
 		db.session.commit()
-		my_info()
+		#my_info()
 	elif 'sso_status' not in allianceRequest.json():
 		#Query all characters in the database
 		databaseList = [row[0] for row in db.session.query(Character.character_id).all()]
