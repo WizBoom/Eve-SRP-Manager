@@ -567,6 +567,7 @@ def sync_corp_members():
 		token.access_token = auth.access_token
 		app.logger.info("New access token provided, updating database")
 		db.session.commit()
+		sync_corp_members()
 		#my_info()
 	elif 'sso_status' not in allianceRequest.json():
 		#Query all characters in the database
@@ -613,9 +614,11 @@ def sync_transactions():
 	lastTransaction = Transaction.query.order_by(Transaction.date.asc()).first()
 	lastId = None
 	lastIdString = "" 
+	monthBefore = datetime.utcnow() - timedelta(months=1)
 	if lastTransaction:
 		lastId = lastTransaction.ref_id
-		lastIdString = "&from_id={}".format(str(lastTransaction.ref_id)) 
+		if lastTransaction.date <= monthBefore:
+			lastIdString = "&from_id={}".format(str(lastTransaction.ref_id)) 
 
 	app.logger.info("Making ESI request to https://esi.tech.ccp.is/latest/corporations/{}/wallets/{}/journal/?datasource=tranquility{}&token={}".format(
 		str(config['CORP_ID']),str(config['CORP_WALLET_DIVISION']),lastIdString,token.access_token))
@@ -631,7 +634,8 @@ def sync_transactions():
 		token.access_token = auth.access_token
 		app.logger.info("New access token provided, updating database")
 		db.session.commit()
-		my_info()
+		sync_transactions()
+		#my_info()
 	elif 'sso_status' not in transactionRequest.json():
 		#Get JSON
 		jsonTransaction = transactionRequest.json()
@@ -710,10 +714,11 @@ def sync_transactions():
 		return True
 
 def corp_update_task():
-	app.logger.info("Starting scheduled sync...")
-	sync_transactions()
-	sync_corp_members()
-	app.logger.info("Scheduled sync completed.")
+	with app.app_context():
+		app.logger.info("Starting scheduled sync...")
+		sync_transactions()
+		sync_corp_members()
+		app.logger.info("Scheduled sync completed.")
 
 scheduler.add_job(
     func=corp_update_task,
