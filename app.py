@@ -611,13 +611,13 @@ def sync_transactions():
 		return False
 
 	#Get last token
-	lastTransaction = Transaction.query.order_by(Transaction.date.asc()).first()
+	lastTransaction = Transaction.query.order_by(Transaction.date.desc()).first()
 	lastId = None
 	lastIdString = "" 
-	monthBefore = datetime.utcnow() - timedelta(months=1)
+	monthBefore = datetime.utcnow() - timedelta(days=30)
 	if lastTransaction:
 		lastId = lastTransaction.ref_id
-		if lastTransaction.date <= monthBefore:
+		if lastTransaction.date >= monthBefore:
 			lastIdString = "&from_id={}".format(str(lastTransaction.ref_id)) 
 
 	app.logger.info("Making ESI request to https://esi.tech.ccp.is/latest/corporations/{}/wallets/{}/journal/?datasource=tranquility{}&token={}".format(
